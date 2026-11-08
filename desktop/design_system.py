@@ -11,6 +11,7 @@ from appearance import THEMES, TEXT_SIZES
 
 # Spacing scale in pixels (4-point grid).
 SPACE = {"xxs": 2, "xs": 4, "s": 8, "m": 12, "l": 16, "xl": 24, "xxl": 32}
+RADIUS = {"s": 6, "m": 9, "l": 14, "xl": 18, "pill": 999}
 SIDEBAR_WIDTH = 236
 CONTENT_MAX_COLUMNS_WIDTH = 760  # below this, two-column layouts stack
 
@@ -192,14 +193,3 @@ class Theme:
             self._apply(widget, roles)
         for callback in list(self._listeners):
             callback(self)
-        self._style_ttk()
-
-    def _style_ttk(self) -> None:
-        from tkinter import ttk
-        c = self.colors
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        style.configure("App.Vertical.TScrollbar", background=c["border"], troughcolor=c["background"],
-                        bordercolor=c["background"], arrowcolor=c["text_secondary"],
-                        lightcolor=c["border"], darkcolor=c["border"], gripcount=0, arrowsize=12)
-        style.map("App.Vertical.TScrollbar", background=[("active", c["border_strong"])])

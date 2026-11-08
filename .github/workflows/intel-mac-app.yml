@@ -51,6 +51,7 @@ jobs:
             --target-architecture x86_64 \
             --paths desktop \
             --collect-submodules bleak \
+            --icon desktop/assets/AppIcon.icns \
             --osx-bundle-identifier org.meshingaround.desktop \
             --add-data "staging/payload:payload" \
             --add-binary "dist/meshing-around-bot:." \
@@ -62,6 +63,9 @@ jobs:
             "Meshing Around uses Bluetooth to connect to your Meshtastic radio." "$PLIST"
           codesign --force --deep --sign - "dist/Meshing Around.app"
           plutil -extract NSBluetoothAlwaysUsageDescription raw "$PLIST"
+          ICON="$(plutil -extract CFBundleIconFile raw "$PLIST")"
+          test -s "dist/Meshing Around.app/Contents/Resources/${ICON%.icns}.icns"
+          echo "App icon: $ICON"
       - name: Confirm architecture and application layout
         run: |
           test -d "dist/Meshing Around.app"

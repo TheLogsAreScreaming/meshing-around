@@ -8,10 +8,9 @@ background without hard-coded colors.
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
 
 import icons
-from design_system import SPACE, tone_colors
+from design_system import RADIUS, SPACE, mix, tone_colors
 
 
 def bg_token(widget) -> str:
@@ -21,6 +20,73 @@ def bg_token(widget) -> str:
             return token
         widget = widget.master
     return "background"
+
+
+def tone_bg_token(tone: str) -> str:
+    return f"{tone}_bg"
+
+
+def tone_fg_token(tone: str) -> str:
+    return "accent_fg" if tone == "accent" else tone
+
+
+def rounded_points(x0, y0, x1, y1, radius):
+    """Control points for a smoothed polygon that draws a rounded rectangle."""
+    r = max(0, min(radius, (x1 - x0) / 2, (y1 - y0) / 2))
+    return [x0 + r, y0, x0 + r, y0, x1 - r, y0, x1 - r, y0, x1, y0, x1, y0 + r,
+            x1, y0 + r, x1, y1 - r, x1, y1 - r, x1, y1, x1 - r, y1, x1 - r, y1,
+            x0 + r, y1, x0 + r, y1, x0, y1, x0, y1 - r, x0, y1 - r, x0, y0 + r,
+            x0, y0 + r, x0, y0]
+
+
+def draw_rounded(canvas, x0, y0, x1, y1, radius, fill, outline="", width=1):
+    return canvas.create_polygon(rounded_points(x0, y0, x1, y1, radius), smooth=True,
+                                 splinesteps=16, fill=fill, outline=outline, width=width)
+
+
+class RoundedFrame(tk.Frame):
+    """Container with a rounded background; children sit on top of it.
+
+    The shape is drawn on a canvas placed behind the children, so the frame still
+    sizes itself from its content. Keep content inside the corners with padding.
+    """
+
+    def __init__(self, parent, theme, fill="surface", outline=None, radius=RADIUS["m"], edge=1, **options):
+        super().__init__(parent, bd=0, highlightthickness=0, **options)
+        self.theme, self.parent_token = theme, bg_token(parent)
+        self.fill, self.outline, self.radius, self.edge = fill, outline, radius, edge
+        self._bg_token = fill
+        self.backing = tk.Canvas(self, bd=0, highlightthickness=0, width=1, height=1)
+        self.backing.place(x=0, y=0, relwidth=1, relheight=1, bordermode="ignore")
+        self.backing.lower()
+        self.backing.bind("<Configure>", lambda e: self._draw())
+        theme.listen(lambda t: self.repaint())
+
+    def restyle(self, fill=None, outline=..., edge=None):
+        """Change token-based styling; pass outline=None to remove the outline."""
+        self.fill = fill or self.fill
+        self._bg_token = self.fill
+        self.outline = self.outline if outline is ... else outline
+        self.edge = edge or self.edge
+        self.repaint()
+
+    def repaint(self):
+        if self.winfo_exists():
+            behind = self.theme.colors[self.parent_token]
+            self.configure(bg=behind)
+            self.backing.configure(bg=behind)
+            self._draw()
+
+    def _draw(self):
+        width, height = self.backing.winfo_width(), self.backing.winfo_height()
+        self.backing.delete("all")
+        if width <= 1 or height <= 1:
+            return
+        c = self.theme.colors
+        inset = self.edge / 2 if self.outline else 0
+        draw_rounded(self.backing, inset, inset, width - inset, height - inset, self.radius,
+                     c[self.fill], c[self.outline] if self.outline else "",
+                     self.edge if self.outline else 0)
 
 
 def surface(parent, theme, token: str = "surface", border: bool = False) -> tk.Frame:
@@ -54,10 +120,10 @@ def text(parent, theme, value=None, variable=None, style="body", tone="text",
 
 
 def card(parent, theme, title=None, subtitle=None, padding="l"):
-    """Bordered surface with optional heading; returns (outer, body)."""
-    outer = surface(parent, theme, "surface", border=True)
+    """Rounded surface with optional heading; returns (outer, body)."""
+    outer = RoundedFrame(parent, theme, "surface", "border", radius=RADIUS["l"])
     body = surface(outer, theme, "surface")
-    pad = SPACE[padding]
+    pad = SPACE[padding] + 4
     body.pack(fill="both", expand=True, padx=pad, pady=pad)
     if title:
         text(body, theme, title, style="headline").pack(fill="x")
@@ -75,6 +141,13 @@ def divider(parent, theme):
     line = tk.Frame(parent, height=1, bd=0)
     theme.paint(line, bg="border")
     return line
+
+
+def icon_badge(parent, theme, name, tone="accent", size=18):
+    """Icon on a soft tinted tile, used to anchor cards visually."""
+    badge = RoundedFrame(parent, theme, tone_bg_token(tone), radius=RADIUS["m"], padx=7, pady=7)
+    Icon(badge, theme, name, tone_fg_token(tone), size=size).pack()
+    return badge
 
 
 class Icon(tk.Canvas):
@@ -99,30 +172,25 @@ class Icon(tk.Canvas):
 
 
 class Button:
-    """Keyboard-accessible button with primary/secondary/ghost/danger styles."""
+    """Keyboard-accessible rounded button: primary/secondary/ghost/danger."""
 
-    def __init__(self, parent, theme, label, command, variant="secondary", width=None):
-        self.theme, self.command, self.variant = theme, command, variant
+    def __init__(self, parent, theme, label, command, variant="secondary"):
+        self.theme, self.command, self.variant, self.caption = theme, command, variant, label
         self.enabled = True
         self._hover = self._pressed = self._focused = False
         self.parent_bg = bg_token(parent)
-        self.frame = tk.Frame(parent, bd=0, padx=2, pady=2)
-        # Ghost buttons read as links, so they hug their text and line up with it.
-        self.label = tk.Label(self.frame, text=label, font=theme.font("body_strong"),
-                              padx=SPACE["xs"] if variant == "ghost" else SPACE["l"],
-                              pady=SPACE["xs"] + 2, bd=0, cursor="hand2",
-                              takefocus=1, width=width)
-        self.label.pack(fill="both", expand=True)
-        for widget in (self.frame, self.label):
-            widget.bind("<Enter>", lambda e: self._set(hover=True))
-            widget.bind("<Leave>", lambda e: self._set(hover=False, pressed=False))
-        self.label.bind("<ButtonPress-1>", lambda e: self._set(pressed=True))
-        self.label.bind("<ButtonRelease-1>", self._release)
-        self.label.bind("<Return>", lambda e: self.invoke())
-        self.label.bind("<KP_Enter>", lambda e: self.invoke())
-        self.label.bind("<space>", lambda e: self.invoke())
-        self.label.bind("<FocusIn>", lambda e: self._set(focused=True))
-        self.label.bind("<FocusOut>", lambda e: self._set(focused=False))
+        self.frame = tk.Canvas(parent, bd=0, highlightthickness=0, takefocus=1, cursor="hand2",
+                               width=1, height=1)
+        self.frame.bind("<Enter>", lambda e: self._set(hover=True))
+        self.frame.bind("<Leave>", lambda e: self._set(hover=False, pressed=False))
+        self.frame.bind("<ButtonPress-1>", lambda e: self._set(pressed=True))
+        self.frame.bind("<ButtonRelease-1>", self._release)
+        self.frame.bind("<Return>", lambda e: self.invoke())
+        self.frame.bind("<KP_Enter>", lambda e: self.invoke())
+        self.frame.bind("<space>", lambda e: self.invoke())
+        self.frame.bind("<FocusIn>", lambda e: self._set(focused=True))
+        self.frame.bind("<FocusOut>", lambda e: self._set(focused=False))
+        self.frame.bind("<Configure>", lambda e: self._paint())
         theme.listen(lambda t: self._paint())
 
     def pack(self, **kw):
@@ -137,7 +205,7 @@ class Button:
         self.frame.pack_forget()
 
     def _release(self, event):
-        inside = 0 <= event.x <= self.label.winfo_width() and 0 <= event.y <= self.label.winfo_height()
+        inside = 0 <= event.x <= self.frame.winfo_width() and 0 <= event.y <= self.frame.winfo_height()
         self._set(pressed=False)
         if inside:
             self.invoke()
@@ -150,13 +218,13 @@ class Button:
     def set_enabled(self, enabled: bool):
         if enabled != self.enabled:
             self.enabled = enabled
-            self.label.configure(cursor="hand2" if enabled else "arrow",
-                                 takefocus=1 if enabled else 0)
+            self.frame.configure(cursor="hand2" if enabled else "arrow", takefocus=1 if enabled else 0)
             self._paint()
 
     def set_label(self, value: str):
-        if self.label.cget("text") != value:
-            self.label.configure(text=value)
+        if self.caption != value:
+            self.caption = value
+            self._paint()
 
     def set_variant(self, variant: str):
         if variant != self.variant:
@@ -168,39 +236,53 @@ class Button:
             setattr(self, f"_{key}", value)
         self._paint()
 
-    def _paint(self):
-        if not self.label.winfo_exists():
-            return
+    def _colors(self):
         c = self.theme.colors
         surround = c[self.parent_bg]
         active = self._hover or self._pressed
         if not self.enabled:
-            fill, fg, edge = c["field"], c["text_disabled"], c["border"]
-        elif self.variant == "primary":
+            return c["field"], c["text_disabled"], c["border"]
+        if self.variant == "primary":
             fill = c["accent_hover"] if active else c["accent"]
-            fg, edge = c["on_accent"], fill
-        elif self.variant == "danger":
-            fill = c["hover"] if active else c["danger_bg"]
-            fg, edge = c["danger"], c["danger"]
-        elif self.variant == "ghost":
-            fill = c["hover"] if active else surround
-            fg, edge = c["accent_text"], surround
-        else:
-            fill = c["hover"] if active else c["field"]
-            fg, edge = c["text"], c["border_strong"]
-        if self._focused and self.enabled:
+            return fill, c["on_accent"], fill
+        if self.variant == "danger":
+            return c["hover"] if active else c["danger_bg"], c["danger"], c["danger"]
+        if self.variant == "ghost":
+            fill = mix(surround, c["text"], 0.1) if active else surround
+            return fill, c["accent_text"], fill
+        return c["hover"] if active else c["field"], c["text"], c["border_strong"]
+
+    def _paint(self):
+        canvas = self.frame
+        if not canvas.winfo_exists():
+            return
+        c, font = self.theme.colors, self.theme.font("body_strong")
+        pad_x = SPACE["s"] if self.variant == "ghost" else SPACE["l"] + 2
+        want_w = font.measure(self.caption) + 2 * pad_x + 4
+        want_h = font.metrics("linespace") + 2 * (SPACE["s"] + 1) + 2
+        if (int(canvas.cget("width")), int(canvas.cget("height"))) != (want_w, want_h):
+            canvas.configure(width=want_w, height=want_h)
+        width = canvas.winfo_width() if canvas.winfo_width() > 1 else want_w
+        height = canvas.winfo_height() if canvas.winfo_height() > 1 else want_h
+        fill, fg, edge = self._colors()
+        focused = self._focused and self.enabled
+        if focused:
             # Primary fill is the accent color, so its ring uses the text color.
             edge = c["text"] if self.variant == "primary" else c["focus"]
-        self.label.configure(bg=fill, fg=fg)
-        self.frame.configure(bg=edge)
+        canvas.configure(bg=c[self.parent_bg])
+        canvas.delete("all")
+        draw_rounded(canvas, 1, 1, width - 1, height - 1, RADIUS["m"], fill, edge, 2 if focused else 1)
+        canvas.create_text(width / 2, height / 2 + (1 if self._pressed else 0), text=self.caption,
+                           font=font, fill=fg)
 
 
-class Pill(tk.Frame):
+class Pill(RoundedFrame):
     """Status indicator: colored dot plus short label."""
 
     def __init__(self, parent, theme, value="", tone="neutral", style="callout"):
-        super().__init__(parent, bd=0, padx=SPACE["s"], pady=SPACE["xxs"] + 1)
-        self.theme, self.tone = theme, tone
+        super().__init__(parent, theme, tone_bg_token(tone), radius=RADIUS["pill"],
+                         padx=SPACE["s"] + 2, pady=SPACE["xxs"] + 1)
+        self.tone = tone
         self.dot = tk.Canvas(self, width=8, height=8, highlightthickness=0, bd=0)
         self.dot.pack(side="left", padx=(0, SPACE["xs"] + 2))
         self.label = tk.Label(self, text=value, font=theme.font(style), bd=0)
@@ -217,34 +299,126 @@ class Pill(tk.Frame):
         if not self.winfo_exists():
             return
         fg, bg = tone_colors(self.theme.colors, self.tone)
-        self.configure(bg=bg)
+        self.restyle(fill=tone_bg_token(self.tone))
         self.label.configure(bg=bg, fg=fg)
         self.dot.configure(bg=bg)
         self.dot.delete("all")
         self.dot.create_oval(1, 1, 7, 7, fill=fg, outline=fg)
 
 
-class Segmented(tk.Frame):
+class StepBadge(tk.Canvas):
+    """Small numbered circle for setup steps."""
+
+    def __init__(self, parent, theme, size=24):
+        super().__init__(parent, width=size, height=size, highlightthickness=0, bd=0)
+        self.theme, self.size, self.parent_bg = theme, size, bg_token(parent)
+        self.value, self.fg, self.bg = "", "#000000", "#ffffff"
+
+    def set(self, value, fg, bg):
+        self.value, self.fg, self.bg = value, fg, bg
+        self.configure(bg=self.theme.colors[self.parent_bg])
+        self.delete("all")
+        self.create_oval(1, 1, self.size - 1, self.size - 1, fill=bg, outline=bg)
+        self.create_text(self.size / 2, self.size / 2, text=value, fill=fg,
+                         font=self.theme.font("caption"))
+
+
+class BrandMark(tk.Canvas):
+    """The app's mesh mark, matching the Dock icon."""
+
+    def __init__(self, parent, theme, size=36):
+        super().__init__(parent, width=size, height=size, highlightthickness=0, bd=0)
+        self.theme, self.size, self.parent_bg = theme, size, bg_token(parent)
+        theme.listen(lambda t: self._draw())
+
+    def _draw(self):
+        if not self.winfo_exists():
+            return
+        s = self.size
+        self.configure(bg=self.theme.colors[self.parent_bg])
+        self.delete("all")
+        draw_rounded(self, 0.5, 0.5, s - 0.5, s - 0.5, s * 0.25, "#123257")
+        points = [(s / 2 + x * s * 0.34, s / 2 + y * s * 0.34) for x, y in icons.MESH_NODES]
+        for a, b in icons.MESH_LINKS:
+            self.create_line(*points[a], *points[b], fill="#40c4e0", width=1)
+        for index, (x, y) in enumerate(points):
+            r = s * (0.11 if index == 0 else 0.055)
+            color = "#d6fdff" if index == 0 else "#28d9e8"
+            self.create_oval(x - r, y - r, x + r, y + r, fill=color, outline=color)
+
+
+class MeshHero(RoundedFrame):
+    """Overview headline with a mesh illustration that lights up when live."""
+
+    def __init__(self, parent, theme):
+        super().__init__(parent, theme, "accent_bg", radius=RADIUS["xl"])
+        self.live = False
+        self.art = tk.Canvas(self, width=250, height=112, highlightthickness=0, bd=0)
+        self.art.pack(side="right", padx=(0, SPACE["xl"]), pady=SPACE["s"])
+        copy = surface(self, theme, "accent_bg")
+        copy.pack(side="left", fill="both", expand=True, padx=(SPACE["xl"], SPACE["l"]), pady=SPACE["l"])
+        spacer_top = surface(copy, theme, "accent_bg")
+        spacer_top.pack(expand=True)
+        self.headline = text(copy, theme, "", style="title")
+        self.headline.pack(fill="x")
+        self.detail = text(copy, theme, "", style="body", wrap=True)
+        self.detail.pack(fill="x", pady=(SPACE["xxs"], 0))
+        surface(copy, theme, "accent_bg").pack(expand=True)
+        theme.listen(lambda t: self._draw_art())
+
+    def set(self, headline, detail, live):
+        self.headline.configure(text=headline)
+        self.detail.configure(text=detail)
+        if live != self.live:
+            self.live = live
+            self._draw_art()
+
+    def _draw_art(self):
+        if not self.winfo_exists():
+            return
+        c = self.theme.colors
+        bg, art = c["accent_bg"], self.art
+        lit = c["success"] if self.live else c["accent_fg"]
+        art.configure(bg=bg)
+        art.delete("all")
+        cx, cy, sx, sy = 125, 56, 118, 66
+        points = [(cx + x * sx, cy + y * sy) for x, y in icons.MESH_NODES]
+        for a, b in icons.MESH_LINKS:
+            art.create_line(*points[a], *points[b], fill=mix(bg, lit, 0.4), width=2)
+        for index, (x, y) in enumerate(points):
+            r = 12 if index == 0 else 6
+            if index == 0:
+                art.create_oval(x - 19, y - 19, x + 19, y + 19, fill=mix(bg, lit, 0.25), outline="")
+            art.create_oval(x - r, y - r, x + r, y + r, fill=lit, outline=lit)
+
+
+class Segmented(RoundedFrame):
     """Mutually exclusive choice, e.g. connection method. Arrow keys move."""
 
     def __init__(self, parent, theme, variable, options, on_change=None):
-        super().__init__(parent, bd=0, padx=1, pady=1)
-        self.theme, self.variable, self.on_change = theme, variable, on_change
-        self.items = []
+        super().__init__(parent, theme, "field", "border_strong", radius=RADIUS["m"] + 2, padx=3, pady=3)
+        self.variable, self.on_change = variable, on_change
+        self.items, self._labels, self._focus = [], {}, None
         for index, (value, label) in enumerate(options):
-            item = tk.Label(self, text=label, font=theme.font("body_strong"), padx=SPACE["l"],
-                            pady=SPACE["xs"] + 2, bd=0, cursor="hand2", takefocus=1,
-                            highlightthickness=2)
-            item.grid(row=0, column=index, sticky="nsew", padx=(0 if index == 0 else 1, 0))
+            item = tk.Canvas(self, bd=0, highlightthickness=0, cursor="hand2", takefocus=1, width=1, height=1)
+            item.grid(row=0, column=index, sticky="nsew")
             self.columnconfigure(index, weight=1, uniform="segment")
             item.bind("<Button-1>", lambda e, v=value: self.select(v))
             item.bind("<space>", lambda e, v=value: self.select(v))
             item.bind("<Return>", lambda e, v=value: self.select(v))
             item.bind("<Left>", lambda e, i=index: self._step(i, -1))
             item.bind("<Right>", lambda e, i=index: self._step(i, 1))
+            item.bind("<FocusIn>", lambda e, v=value: self._focused(v))
+            item.bind("<FocusOut>", lambda e: self._focused(None))
+            item.bind("<Configure>", lambda e: self._paint())
             self.items.append((value, item))
+            self._labels[value] = label
         variable.trace_add("write", lambda *a: self._paint())
         theme.listen(lambda t: self._paint())
+
+    def _focused(self, value):
+        self._focus = value
+        self._paint()
 
     def _step(self, index, delta):
         value, item = self.items[(index + delta) % len(self.items)]
@@ -261,14 +435,24 @@ class Segmented(tk.Frame):
     def _paint(self):
         if not self.winfo_exists():
             return
-        c = self.theme.colors
-        self.configure(bg=c["border_strong"])
+        c, font = self.theme.colors, self.theme.font("body_strong")
         for value, item in self.items:
+            label = self._labels[value]
+            want_w, want_h = font.measure(label) + 2 * SPACE["l"] + 4, font.metrics("linespace") + 2 * SPACE["s"]
+            if (int(item.cget("width")), int(item.cget("height"))) != (want_w, want_h):
+                item.configure(width=want_w, height=want_h)
+            width = item.winfo_width() if item.winfo_width() > 1 else want_w
+            height = item.winfo_height() if item.winfo_height() > 1 else want_h
             selected = value == self.variable.get()
-            item.configure(bg=c["accent"] if selected else c["field"],
-                           fg=c["on_accent"] if selected else c["text"],
-                           highlightbackground=c["accent"] if selected else c["field"],
-                           highlightcolor=c["focus"] if not selected else c["on_accent"])
+            item.configure(bg=c["field"])
+            item.delete("all")
+            focused = value == self._focus
+            if selected or focused:
+                ring = (c["on_accent"] if selected else c["focus"]) if focused else ""
+                draw_rounded(item, 1, 1, width - 1, height - 1, RADIUS["m"],
+                             c["accent"] if selected else c["field"], ring, 2 if focused else 0)
+            item.create_text(width / 2, height / 2, text=label, font=font,
+                             fill=c["on_accent"] if selected else c["text"])
 
 
 class Toggle(tk.Frame):
@@ -342,14 +526,13 @@ class Field(tk.Frame):
         theme.paint(self, bg=self._bg_token)
         self.title = text(self, theme, label, style="body_strong")
         self.title.pack(fill="x")
-        self.box = tk.Frame(self, bd=0, padx=1, pady=1)
+        self.box = RoundedFrame(self, theme, "field", "border_strong", radius=RADIUS["m"],
+                                padx=SPACE["m"], pady=SPACE["s"] + 1)
         self.box.pack(fill="x", pady=(SPACE["xs"] + 2, SPACE["xs"]))
-        self.inner = tk.Frame(self.box, bd=0, padx=SPACE["s"], pady=SPACE["s"] - 1)
-        self.inner.pack(fill="x")
-        self.entry = tk.Entry(self.inner, textvariable=variable, font=theme.font("body"), bd=0,
+        self.entry = tk.Entry(self.box, textvariable=variable, font=theme.font("body"), bd=0,
                               relief="flat", highlightthickness=0)
         self.entry.pack(fill="x")
-        for widget in (self.box, self.inner):
+        for widget in (self.box, self.box.backing):
             widget.bind("<Button-1>", lambda e: self.entry.focus_set())
         self.helper = text(self, theme, helper, style="callout", tone="text_secondary", wrap=True)
         self.helper.pack(fill="x")
@@ -378,26 +561,23 @@ class Field(tk.Frame):
         if not self.winfo_exists():
             return
         c = self.theme.colors
-        edge = c["danger"] if self.error else (c["focus"] if self._focused else c["border_strong"])
-        # The 1px box padding is the border; it thickens on focus or error.
-        ring = 2 if (self._focused or self.error) else 1
-        self.box.configure(bg=edge, padx=ring, pady=ring)
-        self.inner.configure(bg=c["field"])
+        edge = "danger" if self.error else ("focus" if self._focused else "border_strong")
+        self.box.restyle(outline=edge, edge=2 if (self._focused or self.error) else 1)
         self.entry.configure(bg=c["field"], fg=c["text"], insertbackground=c["text"],
                              selectbackground=c["accent"], selectforeground=c["on_accent"])
         self.helper.configure(fg=c["danger"] if self.error else c["text_secondary"])
 
 
-class Banner(tk.Frame):
+class Banner(RoundedFrame):
     """Inline message for results, warnings and errors, with optional details."""
 
     ICONS = {"success": "success", "danger": "danger", "warning": "warning",
              "info": "info", "accent": "info", "neutral": "info"}
 
     def __init__(self, parent, theme, dismissible=True):
-        super().__init__(parent, bd=0, padx=SPACE["m"], pady=SPACE["m"], highlightthickness=1)
-        self.theme, self.tone = theme, "info"
-        self._bg_token = "info_bg"
+        super().__init__(parent, theme, "info_bg", "info", radius=RADIUS["m"],
+                         padx=SPACE["m"], pady=SPACE["m"])
+        self.tone = "info"
         self.icon = tk.Canvas(self, width=18, height=18, highlightthickness=0, bd=0)
         self.icon.grid(row=0, column=0, sticky="n", padx=(0, SPACE["s"]), pady=(1, 0))
         self.title = tk.Label(self, font=theme.font("body_strong"), anchor="w", justify="left", bd=0)
@@ -481,14 +661,14 @@ class Banner(tk.Frame):
         self.visible = False
 
     def _tone_bg(self):
-        return "neutral_bg" if self.tone == "neutral" else f"{self.tone}_bg"
+        return tone_bg_token(self.tone)
 
     def _paint(self):
         if not self.winfo_exists():
             return
         fg, bg = tone_colors(self.theme.colors, self.tone)
         c = self.theme.colors
-        self.configure(bg=bg, highlightbackground=fg, highlightcolor=fg)
+        self.restyle(fill=self._tone_bg(), outline=tone_fg_token(self.tone))
         self.icon.configure(bg=bg)
         icons.draw(self.icon, self.ICONS.get(self.tone, "info"), fg)
         self.title.configure(bg=bg, fg=fg)
@@ -539,6 +719,71 @@ class Spinner(tk.Canvas):
                         outline=c["accent_text"], width=2)
 
 
+class ScrollBar(tk.Canvas):
+    """Slim rounded scrollbar; hides its thumb when everything fits."""
+
+    WIDTH = 10
+    MIN_THUMB = 32
+
+    def __init__(self, parent, theme, command):
+        super().__init__(parent, width=self.WIDTH, height=1, bd=0, highlightthickness=0)
+        self.theme, self.command, self.parent_bg = theme, command, bg_token(parent)
+        self.first, self.last, self._grab, self._hover = 0.0, 1.0, None, False
+        self.bind("<Configure>", lambda e: self._draw())
+        self.bind("<ButtonPress-1>", self._press)
+        self.bind("<B1-Motion>", self._drag)
+        self.bind("<ButtonRelease-1>", lambda e: setattr(self, "_grab", None))
+        self.bind("<Enter>", lambda e: self._hovering(True))
+        self.bind("<Leave>", lambda e: self._hovering(False))
+        theme.listen(lambda t: self._draw())
+
+    def set(self, first, last):
+        self.first, self.last = float(first), float(last)
+        self._draw()
+
+    def _hovering(self, value):
+        self._hover = value
+        self._draw()
+
+    def thumb(self):
+        """(top, bottom) of the thumb in pixels."""
+        height = max(self.winfo_height(), 1)
+        size = max((self.last - self.first) * height, min(self.MIN_THUMB, height))
+        travel = max(height - size, 0)
+        span = 1 - (self.last - self.first)
+        top = travel * (self.first / span) if span > 0 else 0
+        return top, top + size
+
+    def _fraction(self, y):
+        top, bottom = self.thumb()
+        travel = max(self.winfo_height() - (bottom - top), 1)
+        return max(0.0, min(1.0, y / travel)) * (1 - (self.last - self.first))
+
+    def _press(self, event):
+        top, bottom = self.thumb()
+        if top <= event.y <= bottom:
+            self._grab = event.y - top
+        else:
+            self._grab = (bottom - top) / 2
+            self.command("moveto", self._fraction(event.y - self._grab))
+
+    def _drag(self, event):
+        if self._grab is not None:
+            self.command("moveto", self._fraction(event.y - self._grab))
+
+    def _draw(self):
+        if not self.winfo_exists():
+            return
+        c = self.theme.colors
+        self.configure(bg=c[self.parent_bg])
+        self.delete("all")
+        if self.last - self.first >= 1 or self.winfo_height() <= 1:
+            return
+        top, bottom = self.thumb()
+        color = c["text_secondary"] if self._hover or self._grab is not None else c["border_strong"]
+        draw_rounded(self, 2, top + 2, self.WIDTH - 2, bottom - 2, 3, color)
+
+
 class ScrollArea(tk.Frame):
     """Vertical scrolling container; `body` holds the page content."""
 
@@ -548,8 +793,7 @@ class ScrollArea(tk.Frame):
         theme.paint(self, bg=token)
         self.canvas = tk.Canvas(self, bd=0, highlightthickness=0, yscrollincrement=12)
         theme.paint(self.canvas, bg=token)
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview,
-                                       style="App.Vertical.TScrollbar")
+        self.scrollbar = ScrollBar(self, theme, self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         # The scrollbar's width is always reserved by a spacer when it is hidden, so
         # showing it never narrows the content (which would re-wrap text and loop).

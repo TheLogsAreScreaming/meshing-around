@@ -15,14 +15,15 @@ import sys
 import threading
 import time
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 
 from appearance import (DEFAULT_THEME, THEMES, TEXT_SIZES, load_preferences, save_preferences,
                         system_reduce_motion)
 import bot_output
-from components import (Banner, Button, Field, Icon, Pill, ScrollArea, Segmented, Spinner,
-                        Toggle, bg_token, card, divider, eyebrow, surface, text)
-from design_system import CONTENT_MAX_COLUMNS_WIDTH, SIDEBAR_WIDTH, SPACE, Theme, is_dark, tokens
+from components import (Banner, BrandMark, Button, Field, Icon, MeshHero, Pill, RoundedFrame, ScrollArea,
+                        ScrollBar, Segmented, Spinner, StepBadge, Toggle, card, divider, draw_rounded,
+                        eyebrow, icon_badge, surface, text)
+from design_system import CONTENT_MAX_COLUMNS_WIDTH, RADIUS, SIDEBAR_WIDTH, SPACE, Theme, is_dark, tokens
 from log_export import export_logs
 from radio_config import read_radio, save_radio, validate
 import radio_probe
@@ -54,31 +55,35 @@ def reveal(path: Path) -> None:
     subprocess.Popen(["open", str(path)])
 
 
-class NavItem(tk.Frame):
+class NavItem(RoundedFrame):
     """Sidebar destination with icon, label, hover and selected states."""
 
     def __init__(self, parent, theme, label, icon_name, command, shortcut):
-        super().__init__(parent, bd=0, cursor="hand2", takefocus=1, highlightthickness=2)
-        self.theme, self.command, self.selected, self.hover = theme, command, False, False
-        self.indicator = tk.Frame(self, width=3, bd=0)
-        self.indicator.pack(side="left", fill="y")
+        super().__init__(parent, theme, "sidebar", radius=RADIUS["m"], cursor="hand2", takefocus=1)
+        self.command, self.selected, self.hover, self.focused = command, False, False, False
         self.icon = Icon(self, theme, icon_name, tone="text_secondary")
         self.icon._bg = "sidebar"
-        self.icon.pack(side="left", padx=(SPACE["m"], SPACE["s"] + 2), pady=SPACE["s"] + 1)
+        self.icon.pack(side="left", padx=(SPACE["m"], SPACE["s"] + 2), pady=SPACE["s"] + 2)
         self.label = tk.Label(self, text=label, font=theme.font("body"), anchor="w", bd=0)
         self.label.pack(side="left", fill="x", expand=True)
         self.hint = tk.Label(self, text=shortcut, font=theme.font("callout"), bd=0)
         self.hint.pack(side="right", padx=(0, SPACE["m"]))
-        for widget in (self, self.icon, self.label, self.hint, self.indicator):
+        for widget in (self, self.backing, self.icon, self.label, self.hint):
             widget.bind("<Button-1>", lambda e: self.command())
             widget.bind("<Enter>", lambda e: self._hover(True))
             widget.bind("<Leave>", lambda e: self._hover(False))
         self.bind("<Return>", lambda e: self.command())
         self.bind("<space>", lambda e: self.command())
+        self.bind("<FocusIn>", lambda e: self._focus(True))
+        self.bind("<FocusOut>", lambda e: self._focus(False))
         theme.listen(lambda t: self._paint())
 
     def _hover(self, value):
         self.hover = value
+        self._paint()
+
+    def _focus(self, value):
+        self.focused = value
         self._paint()
 
     def set_selected(self, value):
@@ -89,13 +94,13 @@ class NavItem(tk.Frame):
         if not self.winfo_exists():
             return
         c = self.theme.colors
-        bg = c["selected"] if self.selected else (c["sidebar_hover"] if self.hover else c["sidebar"])
-        self.configure(bg=bg, highlightbackground=c["sidebar"], highlightcolor=c["focus"])
-        self.indicator.configure(bg=c["accent"] if self.selected else bg)
+        token = "selected" if self.selected else ("sidebar_hover" if self.hover else "sidebar")
+        bg = c[token]
+        self.restyle(fill=token, outline="focus" if self.focused else None, edge=2)
         self.label.configure(bg=bg, fg=c["text"] if self.selected else c["text_secondary"],
                              font=self.theme.font("body_strong" if self.selected else "body"))
         self.hint.configure(bg=bg, fg=c["text_secondary"])
-        self.icon._bg = "selected" if self.selected else ("sidebar_hover" if self.hover else "sidebar")
+        self.icon._bg = token
         self.icon.set(tone="accent_text" if self.selected else "text_secondary")
 
 
@@ -181,8 +186,11 @@ class DesktopApp:
         rule.pack(side="left", fill="y")
         brand = surface(side, t, "sidebar")
         brand.pack(fill="x", padx=SPACE["l"] + 2, pady=(SPACE["xl"] + 4, SPACE["xl"]))
-        text(brand, t, "Meshing Around", style="title").pack(fill="x")
-        text(brand, t, "Meshtastic bot for Mac", style="callout", tone="text_secondary").pack(fill="x")
+        BrandMark(brand, t).pack(side="left", padx=(0, SPACE["s"] + 2))
+        words = surface(brand, t, "sidebar")
+        words.pack(side="left", fill="x", expand=True)
+        text(words, t, "Meshing Around", style="headline").pack(fill="x")
+        text(words, t, "Meshtastic bot for Mac", style="callout", tone="text_secondary").pack(fill="x")
         for index, (key, label, icon_name, _subtitle) in enumerate(PAGES, start=1):
             item = NavItem(side, t, label, icon_name, lambda k=key: self.show(k), f"⌘{index}")
             item.pack(fill="x", padx=SPACE["s"], pady=1)
@@ -215,7 +223,7 @@ class DesktopApp:
         name.pack(side="left")
         pill = Pill(row, self.theme)
         pill.pack(side="right")
-        for widget in (row, name, pill, pill.label, pill.dot):
+        for widget in (row, name, pill, pill.backing, pill.label, pill.dot):
             widget.bind("<Button-1>", lambda e: self.show(page))
             widget.configure(cursor="hand2")
         return pill
@@ -301,6 +309,8 @@ class DesktopApp:
     def _build_overview(self):
         t = self.theme
         page = self._page("overview")
+        self.hero = MeshHero(page, t)
+        self.hero.pack(fill="x", pady=(0, SPACE["l"]))
         self.setup_outer, setup = card(page, t, "Get started",
                                        "Three steps to put the bot on your mesh.")
         self.setup_outer.pack(fill="x", pady=(0, SPACE["l"]))
@@ -311,7 +321,7 @@ class DesktopApp:
         for number, (label, action, command) in enumerate(steps, start=1):
             row = surface(setup, t)
             row.pack(fill="x", pady=(SPACE["m"], 0))
-            badge = tk.Label(row, text=str(number), font=t.font("caption"), width=2, bd=0, pady=2)
+            badge = StepBadge(row, t)
             badge.pack(side="left")
             name = text(row, t, label, style="body")
             name.pack(side="left", padx=(SPACE["m"], 0))
@@ -322,9 +332,7 @@ class DesktopApp:
         grid.pack(fill="x")
         self.overview_grid = grid
         bot_outer, bot = card(grid, t)
-        eyebrow(bot, t, "Bot").pack(fill="x")
-        self.ov_bot_pill = Pill(bot, t)
-        self.ov_bot_pill.pack(anchor="w", pady=(SPACE["s"], SPACE["s"]))
+        self.ov_bot_pill = self._card_head(bot, "Bot", "bot")
         self.ov_bot_title = text(bot, t, "", style="headline")
         self.ov_bot_title.pack(fill="x")
         self.ov_bot_detail = text(bot, t, "", style="callout", tone="text_secondary", wrap=True)
@@ -335,9 +343,7 @@ class DesktopApp:
         Button(row, t, "Bot details", lambda: self.show("bot"), "ghost").pack(side="left", padx=SPACE["s"])
 
         radio_outer, radio = card(grid, t)
-        eyebrow(radio, t, "Radio").pack(fill="x")
-        self.ov_radio_pill = Pill(radio, t)
-        self.ov_radio_pill.pack(anchor="w", pady=(SPACE["s"], SPACE["s"]))
+        self.ov_radio_pill = self._card_head(radio, "Radio", "radio")
         self.ov_radio_title = text(radio, t, "", style="headline")
         self.ov_radio_title.pack(fill="x")
         self.ov_radio_detail = text(radio, t, "", style="callout", tone="text_secondary", wrap=True)
@@ -361,6 +367,16 @@ class DesktopApp:
         self.recent_empty.pack(fill="x")
         Button(recent, t, "Open activity log", lambda: self.show("activity"), "ghost").pack(
             anchor="w", pady=(SPACE["m"], 0))
+
+    def _card_head(self, parent, label, icon_name):
+        """Icon tile, section name and status pill along the top of a card."""
+        head = surface(parent, self.theme)
+        head.pack(fill="x", pady=(0, SPACE["m"]))
+        icon_badge(head, self.theme, icon_name).pack(side="left")
+        text(head, self.theme, label, style="headline").pack(side="left", padx=(SPACE["s"] + 2, 0))
+        pill = Pill(head, self.theme)
+        pill.pack(side="right")
+        return pill
 
     def _reflow_overview(self, event):
         columns = 2 if event.width >= CONTENT_MAX_COLUMNS_WIDTH else 1
@@ -714,19 +730,16 @@ class DesktopApp:
         page = self._page("activity", scroll=False)
         bar = surface(page, t, "background")
         bar.pack(fill="x", pady=(0, SPACE["m"]))
-        box = tk.Frame(bar, bd=0, padx=1, pady=1)
-        box.pack(side="left")
-        inner = surface(box, t, "field")
-        inner.pack(fill="both")
-        Icon(inner, t, "search", "text_secondary", size=14).pack(side="left", padx=(SPACE["s"], SPACE["xs"]))
+        box = RoundedFrame(bar, t, "field", "border_strong", radius=RADIUS["m"], padx=SPACE["s"], pady=SPACE["xs"])
+        box.pack(side="left", fill="y")
+        Icon(box, t, "search", "text_secondary", size=14).pack(side="left", padx=(SPACE["xxs"], SPACE["xs"]))
         self.search_text = tk.StringVar()
-        self.search_entry = tk.Entry(inner, textvariable=self.search_text, font=t.font("body"),
+        self.search_entry = tk.Entry(box, textvariable=self.search_text, font=t.font("body"),
                                      bd=0, highlightthickness=0, width=26)
         self.search_entry.pack(side="left", ipady=SPACE["xs"] + 2, padx=(0, SPACE["s"]))
         t.paint(self.search_entry, bg="field", fg="text", insertbackground="text")
-        t.paint(box, bg="border_strong")
-        self.search_entry.bind("<FocusIn>", lambda e: box.configure(bg=t.colors["focus"]))
-        self.search_entry.bind("<FocusOut>", lambda e: box.configure(bg=t.colors["border_strong"]))
+        self.search_entry.bind("<FocusIn>", lambda e: box.restyle(outline="focus", edge=2))
+        self.search_entry.bind("<FocusOut>", lambda e: box.restyle(outline="border_strong", edge=1))
         self.search_entry.bind("<Return>", lambda e: self.find(1))
         self.search_entry.bind("<Shift-Return>", lambda e: self.find(-1))
         self.search_entry.bind("<Escape>", lambda e: self.reset_search())
@@ -738,13 +751,12 @@ class DesktopApp:
         Button(bar, t, "Clear…", self.clear_activity, "danger").pack(side="right")
         Button(bar, t, "Export…", self.export_activity).pack(side="right", padx=(0, SPACE["s"]))
 
-        frame = surface(page, t, "field", border=True)
+        frame = RoundedFrame(page, t, "field", "border", radius=RADIUS["l"], padx=SPACE["xs"], pady=SPACE["s"])
         frame.pack(fill="both", expand=True)
         self.output = tk.Text(frame, state="disabled", bd=0, padx=SPACE["m"], pady=SPACE["m"],
                               font=t.font("mono"), wrap="word", highlightthickness=0,
                               spacing1=1, spacing3=1)
-        scroll = ttk.Scrollbar(frame, orient="vertical", command=self.output.yview,
-                               style="App.Vertical.TScrollbar")
+        scroll = ScrollBar(frame, t, self.output.yview)
         self.output.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.output.pack(side="left", fill="both", expand=True)
@@ -926,13 +938,15 @@ class DesktopApp:
 
     def _theme_tile(self, parent, name):
         t = self.theme
-        ring = tk.Frame(parent, bd=0, padx=2, pady=2, takefocus=1, cursor="hand2", highlightthickness=0)
+        ring = RoundedFrame(parent, t, "surface", "border", radius=RADIUS["l"], padx=SPACE["s"], pady=SPACE["s"],
+                            takefocus=1, cursor="hand2")
         inner = surface(ring, t, "surface")
         inner.pack(fill="both", expand=True)
         preview = tk.Canvas(inner, height=64, highlightthickness=0, bd=0)
+        t.paint(preview, bg="surface")
         preview.pack(fill="x")
         caption = surface(inner, t, "surface")
-        caption.pack(fill="x", padx=SPACE["s"], pady=SPACE["s"])
+        caption.pack(fill="x", padx=SPACE["xxs"], pady=(SPACE["s"], 0))
         title = text(caption, t, name, style="body_strong")
         title.pack(side="left")
         text(caption, t, "Dark" if is_dark(name) else "Light", style="callout",
@@ -942,17 +956,16 @@ class DesktopApp:
             colors = tokens(name)
             width = max(preview.winfo_width(), 120)
             preview.delete("all")
-            preview.create_rectangle(0, 0, width, 64, fill=colors["background"], width=0)
-            preview.create_rectangle(0, 0, width * 0.28, 64, fill=colors["sidebar"], width=0)
-            preview.create_rectangle(width * 0.05, 12, width * 0.22, 18, fill=colors["accent"], width=0)
-            preview.create_rectangle(width * 0.05, 26, width * 0.2, 30, fill=colors["text_secondary"], width=0)
-            preview.create_rectangle(width * 0.35, 12, width * 0.94, 52, fill=colors["surface"],
-                                     outline=colors["border"])
-            preview.create_rectangle(width * 0.40, 20, width * 0.7, 26, fill=colors["text"], width=0)
-            preview.create_rectangle(width * 0.40, 36, width * 0.56, 44, fill=colors["accent"], width=0)
+            draw_rounded(preview, 0, 0, width, 64, RADIUS["m"], colors["background"])
+            draw_rounded(preview, 0, 0, width * 0.3, 64, RADIUS["m"], colors["sidebar"])
+            draw_rounded(preview, width * 0.05, 12, width * 0.22, 18, 3, colors["accent"])
+            draw_rounded(preview, width * 0.05, 26, width * 0.2, 30, 2, colors["text_secondary"])
+            draw_rounded(preview, width * 0.35, 12, width * 0.94, 52, 7, colors["surface"], colors["border"])
+            draw_rounded(preview, width * 0.40, 20, width * 0.7, 26, 3, colors["text"])
+            draw_rounded(preview, width * 0.40, 36, width * 0.56, 45, 4, colors["accent"])
 
         preview.bind("<Configure>", draw)
-        for widget in (ring, inner, preview, caption, title):
+        for widget in (ring, ring.backing, inner, preview, caption, title):
             widget.bind("<Button-1>", lambda e: self.select_theme(name))
         ring.bind("<Return>", lambda e: self.select_theme(name))
         ring.bind("<space>", lambda e: self.select_theme(name))
@@ -962,16 +975,11 @@ class DesktopApp:
         return ring
 
     def _paint_tiles(self, *_):
-        c = self.theme.colors
         focused = self.root.focus_get()
         for name, ring in self.theme_tiles.items():
-            if name == self.theme.name:
-                color = c["accent"]
-            elif focused is ring:
-                color = c["focus"]
-            else:
-                color = c["border"]
-            ring.configure(bg=color)
+            selected = name == self.theme.name
+            token = "accent" if selected else ("focus" if focused is ring else "border")
+            ring.restyle(outline=token, edge=2 if selected or focused is ring else 1)
 
     def select_theme(self, name):
         if name == self.theme.name:
@@ -1013,8 +1021,8 @@ class DesktopApp:
             "running": ("success", "Running"), "stopping": ("warning", "Stopping"),
             "failed": ("danger", "Stopped"), "stopped": ("neutral", "Stopped"),
         }[self.bot_state]
+        uptime = bot_output.format_duration(time.monotonic() - (self.started_at or time.monotonic()))
         if self.bot_state == "running":
-            uptime = bot_output.format_duration(time.monotonic() - (self.started_at or time.monotonic()))
             title = "The bot is running"
             detail = f"Running for {uptime}. It answers messages that arrive through your radio."
         elif self.bot_state == "stopping":
@@ -1061,6 +1069,17 @@ class DesktopApp:
             self.radio_spinner.stop()
             self.radio_spinner.pack_forget()
 
+        if self.bot_state == "running" and self.radio_state == "live":
+            self.hero.set("Live on your mesh", f"Connected to {self.radio_title} · up {uptime}", True)
+        elif self.bot_state == "running":
+            self.hero.set("Starting up…", self.radio_detail or where, False)
+        elif self.bot_state == "stopping":
+            self.hero.set("Stopping the bot…", detail, False)
+        elif self.bot_state == "failed":
+            self.hero.set("The bot stopped", self.bot_note, False)
+        else:
+            self.hero.set("Ready when you are", f"Your radio is set to {where}.", False)
+
         done = (self.config.exists(), self.radio_state in ("ok", "live"), running)
         if all(done):
             self.setup_outer.pack_forget()
@@ -1071,11 +1090,10 @@ class DesktopApp:
             c = self.theme.colors
             for index, (badge, name, button) in enumerate(self.setup_rows):
                 complete = done[index]
-                badge.configure(text="✓" if complete else str(index + 1),
-                                bg=c["success_bg"] if complete else c["accent_bg"] if index == next_step
-                                else c["neutral_bg"],
-                                fg=c["success"] if complete else c["accent_fg"] if index == next_step
-                                else c["neutral"])
+                badge.set("✓" if complete else str(index + 1),
+                          c["success"] if complete else c["accent_fg"] if index == next_step else c["neutral"],
+                          c["success_bg"] if complete else c["accent_bg"] if index == next_step
+                          else c["neutral_bg"])
                 name.configure(fg=c["text_secondary"] if complete else c["text"])
                 if index == next_step:
                     button.pack(side="right")
