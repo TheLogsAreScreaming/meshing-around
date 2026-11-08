@@ -35,6 +35,8 @@ jobs:
           python -m unittest discover -s tests -p 'test_release_gate.py' -v
           python -m unittest discover -s tests -p 'test_radio_probe.py' -v
           python -m unittest discover -s tests -p 'test_screenshot_capture.py' -v
+          python -m unittest discover -s tests -p 'test_design_system.py' -v
+          python -m unittest discover -s tests -p 'test_desktop_ui.py' -v
           python desktop/launcher.py --check
       - name: Stage runtime resources
         run: python desktop/stage_payload.py
@@ -91,17 +93,20 @@ jobs:
           test "$bot_code" = 1
           grep -q 'abort. Initializing Interface1' bot.log
           ! grep -q 'Failed to execute script' bot.log
-      - name: Capture dashboard screenshot (best effort)
+      - name: Capture screenshots of every section (best effort)
         continue-on-error: true
         run: |
           mkdir -p screenshots
-          python desktop/capture_dashboard.py screenshots/desktop-dashboard.png
-      - name: Upload dashboard screenshot
+          python desktop/capture_dashboard.py screenshots/desktop-dashboard.png overview
+          for page in radio bot activity settings; do
+            python desktop/capture_dashboard.py "screenshots/desktop-$page.png" "$page" || true
+          done
+      - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dashboard-screenshot
-          path: screenshots/desktop-dashboard.png
+          path: screenshots/*.png
           if-no-files-found: ignore
       - name: Package DMG
         run: |

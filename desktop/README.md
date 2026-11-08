@@ -1,6 +1,6 @@
 # Meshing Around — Intel Mac Desktop Beta
 
-This folder contains the Tkinter desktop application and Intel macOS packaging helpers for the BaconDisk22 fork. The existing Meshtastic bot remains the backend.
+This folder contains the Tkinter desktop application and Intel macOS packaging helpers for this fork. The existing Meshtastic bot remains the backend.
 
 ## Launch from source
 
@@ -10,13 +10,21 @@ From the repository root with dependencies installed:
 python desktop/launcher.py
 ```
 
-## Desktop pages
+## Desktop sections
 
-- **Dashboard:** Bot process status, radio connection status, recent activity, and navigation shortcuts.
-- **Connection:** Choose TCP, BLE, or serial; save settings, test the radio, or find a USB device. A connection test reads radio information and disconnects without transmitting a mesh message.
-- **Bot Controls:** Start and stop the bot process. Stop it before editing or testing radio settings.
-- **Logs:** Read bot output, export diagnostics, or clear the visible log.
-- **Settings:** Change the persistent desktop theme.
+The sidebar has five sections (⌘1–⌘5) and a status area that always shows whether the bot is running and whether the radio is connected.
+
+- **Overview:** A three-step "Get started" checklist until the bot is running, bot and radio status cards with their main actions, and recent events from this session.
+- **Radio:** Choose Wi-Fi / Network, Bluetooth or USB cable, enter the address (checked as you type), then Save and Test connection. A test reads the radio's name, hardware and firmware and disconnects without transmitting. Failures explain what to check in plain language, with the technical detail one click away. USB shows a Find USB radio button.
+- **Bot:** Start, stop or restart the bot, see how long it has run, and see what it does on your mesh (reply mode, enabled features, automatic broadcasts), read from `config.ini`. Advanced options open the config file or show it in Finder.
+- **Activity:** Live bot output with errors and warnings colored, search with match count (Return / Shift-Return for next and previous, Escape to reset), export to `~/Documents/Meshing Around Logs`, clear (asks first), and a Follow new output switch.
+- **Settings:** Six themes (five dark, one light: Daylight), text size (Default / Large / Larger), Reduce motion (follows macOS until changed), app folders and keyboard shortcuts.
+
+The menu bar mirrors these actions: ⌘T test connection, ⌘S save radio settings, ⌘R start and ⌘. stop the bot, ⌘F search activity, ⌘E export, ⌘, settings. Quitting while the bot runs asks first, then stops it.
+
+### Design system
+
+All styling comes from [`design_system.py`](design_system.py) (color tokens derived per theme and checked against WCAG AA contrast, type scale, spacing) and the components in [`components.py`](components.py) and [`icons.py`](icons.py). Screens should use these rather than hard-coded colors or fonts.
 
 The default Wi-Fi/TCP address is `meshtastic.local`. You can specify a reachable radio host and port (for example `192.168.1.50:4403`). The app also supports BLE and USB/serial selection, subject to hardware and platform compatibility.
 
@@ -33,7 +41,7 @@ The [Intel Mac workflow](../.github/workflows/intel-mac-app.yml) builds an x86_6
 
 ## Screenshots
 
-The build workflow has an optional `dashboard-screenshot` artifact step. Screenshot capture is best effort and should not be treated as a verified image until the capture is inspected. The main [README](../README.md) will display actual desktop screenshots once available.
+The build workflow has an optional `dashboard-screenshot` artifact step that captures each of the five sections. Screenshot capture is best effort and should not be treated as a verified image until the capture is inspected. The main [README](../README.md) will display actual desktop screenshots once available.
 
 ## Validation status
 

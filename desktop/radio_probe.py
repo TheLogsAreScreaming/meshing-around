@@ -19,17 +19,25 @@ def split_host(endpoint: str) -> tuple[str, int]:
     return endpoint, 4403
 
 
+def _construct(cls, *args, **kwargs):
+    """Pass a timeout where supported; older meshtastic releases lack the argument."""
+    import inspect
+    if "timeout" in inspect.signature(cls.__init__).parameters:
+        kwargs["timeout"] = TIMEOUT
+    return cls(*args, **kwargs)
+
+
 def open_interface(mode: str, endpoint: str):
     mode, endpoint = validate(mode, endpoint)
     if mode == "tcp":
         from meshtastic.tcp_interface import TCPInterface
         host, port = split_host(endpoint)
-        return TCPInterface(hostname=host, portNumber=port, noNodes=True, timeout=TIMEOUT)
+        return _construct(TCPInterface, hostname=host, portNumber=port, noNodes=True)
     if mode == "serial":
         from meshtastic.serial_interface import SerialInterface
-        return SerialInterface(devPath=endpoint, noNodes=True, timeout=TIMEOUT)
+        return _construct(SerialInterface, devPath=endpoint, noNodes=True)
     from meshtastic.ble_interface import BLEInterface
-    return BLEInterface(endpoint, noNodes=True, timeout=TIMEOUT)
+    return _construct(BLEInterface, endpoint, noNodes=True)
 
 
 def probe(mode: str, endpoint: str) -> dict:

@@ -28,7 +28,8 @@ def valid_png(path: Path) -> bool:
         return False
 
 
-def capture(target: Path) -> int:
+def capture(target: Path, page: str | None = None) -> int:
+    """Launch the desktop app (optionally on one section) and screenshot it."""
     if sys.platform != "darwin":
         print("Screenshots require macOS", file=sys.stderr)
         return 2
@@ -36,8 +37,9 @@ def capture(target: Path) -> int:
         print("No confirmed GUI session; attempting macOS capture anyway")
     target.parent.mkdir(parents=True, exist_ok=True)
     launcher = Path(__file__).with_name("launcher.py")
+    env = dict(os.environ, MESHING_AROUND_PAGE=page) if page else None
     proc = subprocess.Popen([sys.executable, str(launcher)], cwd=launcher.parent.parent,
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     try:
         time.sleep(6)
         if proc.poll() is not None:
@@ -62,6 +64,6 @@ def capture(target: Path) -> int:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: capture_dashboard.py OUTPUT.png")
-    raise SystemExit(capture(Path(sys.argv[1])))
+    if len(sys.argv) not in (2, 3):
+        raise SystemExit("Usage: capture_dashboard.py OUTPUT.png [overview|radio|bot|activity|settings]")
+    raise SystemExit(capture(Path(sys.argv[1]), sys.argv[2] if len(sys.argv) == 3 else None))

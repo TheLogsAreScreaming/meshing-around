@@ -1,23 +1,25 @@
 # Meshing Around — Meshtastic Bot & Intel Mac Desktop
 
-This BaconDisk22 fork combines the existing feature-rich Meshtastic bot with a five-page desktop control center for Intel Macs. The original bot features and module documentation remain available below.
+This fork combines the existing feature-rich Meshtastic bot with a five-page desktop control center for Intel Macs. The original bot features and module documentation remain available below.
 
 ## Intel Mac desktop beta
 
-The desktop application provides **Dashboard**, **Connection**, **Bot Controls**, **Logs**, and **Settings** pages, with larger readable typography and selectable themes.
+The desktop application has five sections — **Overview**, **Radio**, **Bot**, **Activity** and **Settings** — with a persistent status area, keyboard shortcuts, six themes (including a light theme), adjustable text size and reduced motion.
 
-- **Connection:** Configure Wi-Fi/TCP, Bluetooth LE, or USB/serial radio access; test the radio before running the bot. Wi-Fi/TCP defaults to `meshtastic.local`; you can enter a host and port such as `192.168.1.50:4403`.
-- **Dashboard:** View bot status, radio test results, recent activity, and quick navigation.
-- **Bot Controls:** Start or stop the existing bot process and monitor its status.
-- **Logs:** Inspect bot output, export diagnostic logs, and clear the visible log. Search the logs, export diagnostics, and clear the visible log.
-- **Settings:** Choose and save a desktop color theme.
+- **Overview:** Setup checklist, bot and radio status, recent events.
+- **Radio:** Connect over Wi-Fi / Network, Bluetooth or USB cable and test the connection before running the bot. Wi-Fi defaults to `meshtastic.local`; you can enter a host and port such as `192.168.1.50:4403`.
+- **Bot:** Start, stop or restart the existing bot and see what it does on your mesh.
+- **Activity:** Search, export and clear live bot output.
+- **Settings:** Theme, text size, motion, folders and shortcuts.
+
+See [desktop/README.md](desktop/README.md) for details.
 
 ### Download and run
 
-1. Open [GitHub Actions — Intel Mac app and DMG (beta)](https://github.com/BaconDisk22/meshing-around/actions/workflows/intel-mac-app.yml) and select a **successful** run on `main`.
+1. Open [GitHub Actions — Intel Mac app and DMG (beta)](https://github.com/TheLogsAreScreaming/meshing-around/actions/workflows/intel-mac-app.yml) and select a **successful** run on `main`.
 2. Under **Artifacts**, download `meshing-around-intel-mac-beta` while it is retained. The archive includes the Intel Mac application and DMG.
 3. Open the DMG, move the app to Applications, and launch it. If macOS blocks the unsigned beta, use **Control-click → Open** and confirm only if you trust the build.
-4. Configure your radio in **Connection**, save settings, and test the connection before starting the bot.
+4. Follow **Get started** on the Overview: choose your radio connection, test it, then start the bot.
 
 This is a **beta**, not a confirmed hardware-validated release. Build and headless smoke tests do not guarantee live radio connectivity. Do not connect multiple clients to the same radio simultaneously.
 
@@ -25,7 +27,7 @@ This is a **beta**, not a confirmed hardware-validated release. Build and headle
 
 See the [real screenshot capture and review guide](docs/SCREENSHOTS.md) for automated and manual capture, privacy checks, and the five-page gallery plan.
 
-A recent [successful Intel Mac workflow run](https://github.com/BaconDisk22/meshing-around/actions/runs/42115639925) produced a `dashboard-screenshot` artifact. The image still needs manual review for visual correctness and private information before embedding in this README.\n\nThe screenshot capture job is currently **best effort**. If a workflow run contains a `dashboard-screenshot` artifact, it may be downloaded from that run. A verified desktop screenshot will be embedded here once capture succeeds and the image is reviewed. No mockup is presented as a real app screenshot.
+A recent [successful Intel Mac workflow run](https://github.com/TheLogsAreScreaming/meshing-around/actions/runs/42115639925) produced a `dashboard-screenshot` artifact. The image still needs manual review for visual correctness and private information before embedding in this README.\n\nThe screenshot capture job is currently **best effort**. If a workflow run contains a `dashboard-screenshot` artifact, it may be downloaded from that run. A verified desktop screenshot will be embedded here once capture succeeds and the image is reviewed. No mockup is presented as a real app screenshot.
 
 ### Development and testing
 
