@@ -7,6 +7,7 @@ background without hard-coded colors.
 """
 from __future__ import annotations
 
+import math
 import tkinter as tk
 
 import icons
@@ -30,18 +31,21 @@ def tone_fg_token(tone: str) -> str:
     return "accent_fg" if tone == "accent" else tone
 
 
-def rounded_points(x0, y0, x1, y1, radius):
-    """Control points for a smoothed polygon that draws a rounded rectangle."""
+def rounded_points(x0, y0, x1, y1, radius, steps=10):
+    """Outline of a rounded rectangle, with each corner sampled along a true arc."""
     r = max(0, min(radius, (x1 - x0) / 2, (y1 - y0) / 2))
-    return [x0 + r, y0, x0 + r, y0, x1 - r, y0, x1 - r, y0, x1, y0, x1, y0 + r,
-            x1, y0 + r, x1, y1 - r, x1, y1 - r, x1, y1, x1 - r, y1, x1 - r, y1,
-            x0 + r, y1, x0 + r, y1, x0, y1, x0, y1 - r, x0, y1 - r, x0, y0 + r,
-            x0, y0 + r, x0, y0]
+    corners = ((x1 - r, y0 + r, -90), (x1 - r, y1 - r, 0), (x0 + r, y1 - r, 90), (x0 + r, y0 + r, 180))
+    points = []
+    for cx, cy, start in corners:
+        for step in range(steps + 1):
+            angle = math.radians(start + 90 * step / steps)
+            points += [cx + r * math.cos(angle), cy + r * math.sin(angle)]
+    return points
 
 
 def draw_rounded(canvas, x0, y0, x1, y1, radius, fill, outline="", width=1):
-    return canvas.create_polygon(rounded_points(x0, y0, x1, y1, radius), smooth=True,
-                                 splinesteps=16, fill=fill, outline=outline, width=width)
+    return canvas.create_polygon(rounded_points(x0, y0, x1, y1, radius), fill=fill,
+                                 outline=outline, width=width)
 
 
 class RoundedFrame(tk.Frame):
@@ -396,7 +400,7 @@ class Segmented(RoundedFrame):
     """Mutually exclusive choice, e.g. connection method. Arrow keys move."""
 
     def __init__(self, parent, theme, variable, options, on_change=None):
-        super().__init__(parent, theme, "field", "border_strong", radius=RADIUS["m"] + 2, padx=3, pady=3)
+        super().__init__(parent, theme, "field", "border_strong", radius=RADIUS["m"] + 2, padx=4, pady=4)
         self.variable, self.on_change = variable, on_change
         self.items, self._labels, self._focus = [], {}, None
         for index, (value, label) in enumerate(options):
