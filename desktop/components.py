@@ -58,7 +58,7 @@ class RoundedFrame(tk.Frame):
         self._bg_token = fill
         self.backing = tk.Canvas(self, bd=0, highlightthickness=0, width=1, height=1)
         self.backing.place(x=0, y=0, relwidth=1, relheight=1, bordermode="ignore")
-        self.backing.lower()
+        tk.Misc.lower(self.backing)  # Canvas.lower only reorders items inside a canvas
         self.backing.bind("<Configure>", lambda e: self._draw())
         theme.listen(lambda t: self.repaint())
 
