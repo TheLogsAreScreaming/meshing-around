@@ -76,3 +76,11 @@ def draw(canvas, name: str, color: str, size: int = GRID) -> None:
         line(10.5, 10.5, 15.5, 15.5)
     else:
         raise ValueError(f"Unknown icon: {name}")
+
+
+# The Meshing Around mark, shared by the app icon and the in-app brand art:
+# node positions in -1..1 (y down) and the links between them. Node 0 is the hub.
+MESH_NODES = ((0.0, 0.02), (-0.62, -0.42), (0.05, -0.72), (0.66, -0.38),
+              (0.70, 0.40), (0.02, 0.72), (-0.64, 0.44))
+MESH_LINKS = ((1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 1),
+              (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6))

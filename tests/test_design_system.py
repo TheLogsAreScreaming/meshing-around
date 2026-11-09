@@ -30,9 +30,19 @@ class ContrastTests(unittest.TestCase):
                     self.assertGreaterEqual(contrast(t[tone], t[f"{tone}_bg"]), BODY_CONTRAST)
                     self.assertGreaterEqual(contrast(t[tone], t["field"]), BODY_CONTRAST)
                 self.assertGreaterEqual(contrast(t["accent_fg"], t["accent_bg"]), BODY_CONTRAST)
+                self.assertGreaterEqual(contrast(t["text"], t["accent_bg"]), BODY_CONTRAST)
 
     def test_light_theme_available(self):
         self.assertIn("Daylight", THEMES)
+
+
+class AppIconTests(unittest.TestCase):
+    def test_icon_files_are_committed(self):
+        assets = pathlib.Path(__file__).resolve().parents[1] / "desktop" / "assets"
+        self.assertEqual((assets / "AppIcon.icns").read_bytes()[:4], b"icns")
+        header = (assets / "AppIcon-1024.png").read_bytes()[:24]
+        self.assertEqual(header[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(int.from_bytes(header[16:20], "big"), 1024)
 
 
 class BotOutputTests(unittest.TestCase):

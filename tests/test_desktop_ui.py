@@ -126,6 +126,19 @@ class DesktopUITests(unittest.TestCase):
         self.app._bot_event("CRITICAL | System: abort. Initializing Interface1 [Errno 61] Connection refused")
         self.assertEqual(self.app.radio_state, "error")
 
+    def test_hero_follows_bot_and_radio_state(self):
+        self.assertEqual(self.app.hero.headline.cget("text"), "Ready when you are")
+        self.assertFalse(self.app.hero.live)
+
+    def test_rounded_controls_keep_their_size_after_theme_changes(self):
+        self.app.show("radio")
+        self.pump()
+        requested = self.app.save_button.frame.winfo_reqwidth()
+        self.assertGreater(requested, 20)
+        self.app.select_theme("Daylight")
+        self.pump()
+        self.assertEqual(self.app.save_button.frame.winfo_reqwidth(), requested)
+
     def test_window_survives_small_sizes(self):
         for size in ("880x600", "1400x900", "880x600"):
             self.root.deiconify()
