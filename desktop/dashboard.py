@@ -920,7 +920,7 @@ class DesktopApp:
             row.pack(fill="x", pady=(SPACE["m"], 0))
             row.columnconfigure(1, weight=1)
             text(row, t, label, style="body", tone="text_secondary", width=18).grid(row=0, column=0, sticky="nw")
-            text(row, t, value, style="body", wrap=True).grid(row=0, column=1, sticky="ew")
+            text(row, t, value, style="body", wrap=True).grid(row=0, column=1, sticky="new")
             if label != "Version":
                 Button(row, t, "Show in Finder", lambda v=value: reveal(Path(v)), "ghost").grid(
                     row=0, column=2, sticky="ne")

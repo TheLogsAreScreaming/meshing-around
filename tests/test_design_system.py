@@ -36,6 +36,22 @@ class ContrastTests(unittest.TestCase):
         self.assertIn("Daylight", THEMES)
 
 
+class RoundedShapeTests(unittest.TestCase):
+    def test_corners_use_the_full_radius(self):
+        from components import rounded_points
+        points = rounded_points(0, 0, 100, 40, 12)
+        xs, ys = points[0::2], points[1::2]
+        self.assertAlmostEqual(min(xs), 0)
+        self.assertAlmostEqual(max(ys), 40)
+        self.assertFalse(any(x < 1 and y < 1 for x, y in zip(xs, ys)))
+        # Halfway round the top-right corner sits on the arc, not near the square corner.
+        self.assertAlmostEqual(xs[5], 88 + 12 * 0.7071, places=2)
+
+    def test_radius_is_limited_to_a_pill(self):
+        from components import rounded_points
+        self.assertAlmostEqual(max(rounded_points(0, 0, 50, 20, 999)[1::2]), 20)
+
+
 class AppIconTests(unittest.TestCase):
     def test_icon_files_are_committed(self):
         assets = pathlib.Path(__file__).resolve().parents[1] / "desktop" / "assets"
