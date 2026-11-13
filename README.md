@@ -11,6 +11,7 @@ The desktop application has five sections — **Overview**, **Radio**, **Bot**, 
 - **Bot:** Start, stop or restart the existing bot and see what it does on your mesh.
 - **Activity:** Search, export and clear live bot output.
 - **Settings:** Theme, text size, motion, folders and shortcuts.
+- **Integrations (optional, off by default):** webhooks for messages, nodes and telemetry; an assistant link so Claude can read your mesh (MCP); Prometheus `/metrics`, InfluxDB line protocol and a Grafana dashboard. See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md).
 
 See [desktop/README.md](desktop/README.md) for details.
 

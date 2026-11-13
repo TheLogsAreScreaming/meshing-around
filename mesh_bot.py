@@ -9,12 +9,20 @@ except ImportError:
     sys.exit(1)
 
 import asyncio
+import os
 import time # for sleep, get some when you can :)
 import random
 from datetime import datetime
 from modules.log import logger, CustomFormatter, msgLogger, getPrettyTime
 import modules.settings as my_settings
 from modules.system import *
+from modules.mesh_integrations import hub_from_config
+
+# Optional webhooks / assistant link / metrics; every part is off unless
+# switched on in the [integrations] section of config.ini.
+integration_hub = hub_from_config(
+    my_settings.config, "meshing-around",
+    os.path.join(os.path.dirname(os.path.abspath(my_settings.config_file)), "data"))
 
 # list of commands to remove from the default list for DM only
 restrictedCommands = ["blackjack", "videopoker", "dopewars", "lemonstand", "golfsim", "mastermind", "hangman", "hamtest", "tictactoe", "tic-tac-toe", "quiz", "q:", "survey", "s:", "battleship", "spudgun", "spudgunner", "lunarlander", "football", "yatz"]
@@ -2144,6 +2152,8 @@ def onReceive(packet, interface):
         logger.warning(f"System: Ignoring malformed packet type: {type(packet).__name__}")
         return
 
+    integration_hub.observe(packet)
+
     decoded = packet.get('decoded')
     if not isinstance(decoded, dict):
         decoded = {}
@@ -2553,6 +2563,8 @@ async def start_rx():
     # Start the receive subscriber using pubsub via meshtastic library
     pub.subscribe(onReceive, 'meshtastic.receive')
     pub.subscribe(onDisconnect, 'meshtastic.connection.lost')
+    pub.subscribe(integrations_link_lost, 'meshtastic.connection.lost')
+    pub.subscribe(integrations_link_up, 'meshtastic.connection.established')
     logger.debug("System: RX Subscriber started")
     # here we go loopty loo
     while True:
@@ -2580,6 +2592,28 @@ gameTrackers = [
     # quiz does not use a tracker (quizGamePlayer) always active
 ]
 
+def integrations_link_lost(interface=None):
+    integration_hub.state.set_radio(connected=False)
+
+def integrations_link_up(interface=None):
+    integration_hub.state.set_radio(connected=True)
+
+def start_integrations():
+    """Start the optional integrations ([integrations] in config.ini)."""
+    def assistant_send(text, channel, destination):
+        node = int(destination.lstrip('!'), 16) if destination else 0
+        return send_message(text, channel, node, 1)
+
+    integration_hub.send_text = assistant_send
+    integration_hub.state.set_radio(connected=True, interface=str(interface1_type))
+    try:
+        integration_hub.start()
+    except OSError as e:
+        logger.warning(f"System: Assistant link could not start on 127.0.0.1:{integration_hub.settings.local_api_port}: {e}")
+        return
+    if integration_hub.settings.any_enabled:
+        logger.info(f"System: Integrations {integration_hub.describe()}")
+
 # Hello World 
 async def main():
     tasks = []
@@ -2589,6 +2623,7 @@ async def main():
         # Create core tasks
         tasks.append(asyncio.create_task(start_rx(), name="mesh_rx"))
         tasks.append(asyncio.create_task(watchdog(), name="watchdog"))
+        start_integrations()
 
         # Add optional tasks
         if my_settings.dataPersistence_enabled:
@@ -2632,6 +2667,7 @@ async def main():
     except Exception as e:
         logger.error(f"Main loop error: {e}")
     finally:
+        integration_hub.stop()
         # Cleanup tasks
         logger.debug("System: Cleaning up async tasks")
         for task in tasks:

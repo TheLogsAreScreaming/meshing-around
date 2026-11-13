@@ -18,5 +18,9 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_radio_config.py' -v
       - name: Theme persistence tests
         run: python -m unittest discover -s tests -p 'test_appearance.py' -v
+      - name: Integrations and assistant link tests
+        run: |
+          python -m unittest discover -s tests -p 'test_integrations.py' -v
+          python -m unittest discover -s tests -p 'test_assistant_mcp.py' -v
       - name: Headless desktop validation
         run: python desktop/launcher.py --check

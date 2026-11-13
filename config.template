@@ -528,3 +528,34 @@ autoBanTimeframe = 3600
 enabled = True
 # Interval in seconds for the persistence loop (how often to save data)
 interval = 300
+[integrations]
+# Optional links to other software. Everything here is OFF by default.
+# See docs/INTEGRATIONS.md for examples, Grafana and Claude setup.
+#
+# Webhooks: POST a small JSON document for each selected mesh event.
+webhooks_enabled = False
+# Comma separated http:// or https:// URLs
+webhook_urls =
+# Any of: message, node, telemetry
+webhook_events = message,node,telemetry
+# Set False to leave message text out of webhook bodies
+webhook_include_text = True
+# Optional shared secret; adds X-Mesh-Signature: sha256=<HMAC of the body>
+webhook_secret =
+#
+# Assistant link + metrics: a small web server on 127.0.0.1 only (never the network).
+# Serves /metrics (Prometheus), /influx (line protocol) and the token-protected
+# API used by the assistant link (modules/assistant_mcp.py).
+local_api_enabled = False
+local_api_port = 9478
+metrics_enabled = True
+# Let the assistant send mesh messages. Keep False unless you really want that.
+assistant_send_enabled = False
+#
+# Telemetry history as InfluxDB line protocol.
+# Append every telemetry packet to this file (relative paths are inside data/)
+influx_file =
+# Or push each line to an InfluxDB v2 write URL, e.g.
+# http://127.0.0.1:8086/api/v2/write?org=home&bucket=mesh&precision=s
+influx_url =
+influx_token =
