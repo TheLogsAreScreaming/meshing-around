@@ -78,6 +78,10 @@ def main() -> None:
     bundle = Path(sys._MEIPASS)
     workspace = Path.home() / "Library" / "Application Support" / "MeshingAround" / "runtime"
     workspace, bot = prepare_workspace(bundle, workspace)
+    if "--assistant-mcp" in sys.argv:
+        # Started by an assistant (e.g. Claude Desktop) as an MCP stdio server.
+        import assistant_mcp
+        sys.exit(assistant_mcp.main(workspace / "config.ini", workspace / "data"))
     if "--probe-radio" in sys.argv:
         import radio_probe
         index = sys.argv.index("--probe-radio")
